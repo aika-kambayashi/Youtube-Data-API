@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Youtube</title>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap-theme.min.css">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
+        <script>
+            var apiKey = 'AIzaSyAyU12wRBnyKx4kvjlJmdVORch85QPtPNw';
+            var videoId;
+            var googleApiClientReady = function() {
+                init();
+            }
+            var init = function() {
+                $('#btn').attr('disabled', false);
+            }
+            // プレイリスト
+            var playlist;
+            var title;
+            var description;
+            // 現在再生中の曲のインデックス
+            var current = 0;
+            // 次を再生
+            function playNext() {
+                current++;
+                if (current >= playlist.length) {
+                    current = 0;
+                }
+                showDetails();
+                highlight();
+                player.loadVideoById(playlist[current]);
+            }
+            // 戻る
+            function playPrev() {
+                current--;
+                if (current < 0) {
+                    current = playlist.length-1;
+                }
+                showDetails();
+                highlight();
+                player.loadVideoById(playlist[current]);
+            }
+            // 再生と停止
+            function exe() {
+                if (player.getPlayerState() == YT.PlayerState.PLAYING) {
+                    player.pauseVideo();
+                } else {
+                    player.playVideo();
+                }
+            }
+            // クリックされた曲を再生
+            function playThis(id) {
+                current = playlist.indexOf(id);
+                showDetails();
+                highlight();
+                player.loadVideoById(playlist[current]);
+            }
+            // 
+            function showDetails() {
+                $('#title').html(title[current]);
+                $('#description').html(description[current]);
+            }
+            // ハイライト
+            function highlight() {
+                $('.movie_box').removeClass('active');
+                $('.movie_box').eq(current).addClass('active');
+            }
+
+            var search = function(keyword) {
+                gapi.client.setApiKey(apiKey);
+                gapi.client.load('youtube', 'v3', function() {
+                });
+                var request = gapi.client.request({
+                    'path': '/youtube/v3/search',
+                    'params': {
+                        'q'   : keyword,
+                        'type': 'video',
+                        'maxResults': 20,
+                        'part': 'snippet',
+                    }
+                });
+                request.execute(function(data) {
+                    //console.log(data);
+                    if (!data.items) return;
+                    playlist = [];
+                    title = [];
+                    description = [];
+                    $('#related').text('');
+                    $('#related').append('<table>');
+                    for (var i in data.items) {
+                        if (data.items[i].id.videoId && data.items[i].id.kind == "youtube#video") {
+                            playlist.push(data.items[i].id.videoId);
+                            title.push(data.items[i].snippet.title);
+                            description.push(data.items[i].snippet.description);
+                            $('#related table').append(
+                                '<tr class="movie_box">' + 
+                                '<td class="thum">' + 
+                                '<img src="' + data.items[i].snippet.thumbnails.default.url + '" onclick="playThis(\'' + data.items[i].id.videoId + '\');" />' +
+                                '</td>' +
+                                '<td class="details" onclick="playThis(\'' + data.items[i].id.videoId + '\');" >' + 
+                                data.items[i].snippet.title + '<br />' +
+                                '</td>' +
+                                '</tr>');
+                        }
+                    }
+                    //console.log(playlist);
+                    if (isReady == 1) {
+                        player = new YT.Player('player', {
+                            height: '390',
+                            width: '640',
+                            videoId: playlist[current],
+                            events: {
+                                'onReady': onPlayerReady,
+                                'onStateChange': onPlayerStateChange,
+                                'onError': onPlayerError
+                            }
+                        });
+                        isReady = 0;
+                        $('#title').html(title[0]);
+                        $('#description').html(description[0]);
+                        $('.movie_box').eq(0).addClass('active');
+                        $('#main_box').show();
+                        $('#loading').fadeOut();
+                        return;
+                    }
+                    $('#main_box').show();
+                    $('#loading').fadeOut();
+                    current = -1;
+                });
+            }
+
+            // IFrame Player APIを非同期にロード
+            var tag = document.createElement('script');
+            tag.src = 'http://www.youtube.com/player_api';
+            var firstScriptTag = document.getElementsByTagName('script')[0];
+            firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+            // APIをダウンロードしたら<iframe>とYouTubeプレイヤーを生成
+            var player;
+            function onYouTubePlayerAPIReady() {
+                isReady = 1;
+            }
+            
+            // プレイヤが準備できたら呼び出される
+            function onPlayerReady(event) {
+                event.target.playVideo();
+            }
+            // ステータスが変更されたら呼び出される
+            function onPlayerStateChange(event) {
+                if (event.data == YT.PlayerState.ENDED) {   
+                    playNext();
+                } else if (event.data == YT.PlayerState.PLAYING) {
+                    $('#exe').val("停止");
+                } else if (event.data == YT.PlayerState.PAUSED) {
+                    $('#exe').val("再生");
+                } 
+            }
+            // エラーが起きたら次を再生
+            function onPlayerError(event) {
+                playNext();
+            }
+            $(function() {
+                $('#main_box').hide();
+                $('#prev').on('click',function() {
+                    playPrev();
+                });
+                $('#next').on('click',function() {
+                    playNext();
+                });
+                $('#exe').on('click',function() {
+                    exe();
+                });
+                $('form').submit(function() {
+                    var keyword = $('#keyword').val();
+                    $('#loading').fadeIn();
+                    search(keyword);
+                    return false;
+                });
+            });
+        </script>
+        <style>
+            html, body {
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            #container {
+                background-color: #f1f1f1;
+            }
+            #header {
+                padding: 20px;
+                background-color: #fff;
+            }
+            #header form {
+                width: 1200px;
+                margin: 0 auto;
+            }
+            #loading {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: url(http://no1s.biz/kenshu/image/loader.gif) no-repeat center center #ccc;
+                opacity: 0.5;
+                z-index: 9999;
+            }
+            #main_box {
+                margin: 0 auto;
+                width: 1200px;
+            }
+            #main {
+                background-color: #fff;
+                margin-top: 20px;
+                padding: 20px;
+            }
+            #movie_title {
+                font-size: 1.2em;
+                margin-bottom: 20px;
+            }
+            #movie_description {
+                font-size: 1em;
+                margin: 20px 0;
+            }
+            #related {
+                background-color: #f1f1f1;
+                margin-top: 20px;
+                padding-left: 50px;
+                width: 500px;
+            }
+            #related table {
+                background-color: #fff;
+            }
+            #related table tr {
+                border-bottom: 3px solid #f1f1f1;
+            }
+            #related td.thum {
+                padding: 10px 10px 20px 10px;
+                cursor: pointer;
+            }
+            #related td.details {
+                padding: 10px 10px 20px 0;
+                vertical-align: top;
+                cursor: pointer;
+            }
+            .active {
+                background-color: red;
+            }
+            #title {
+                font-size: 20px;
+                margin-bottom: 10px;
+                overflow-wrap: break-word;
+                width: 640px;   
+            }
+            #description {
+                margin-top: 10px;
+                width: 640px;
+                overflow-wrap: break-word;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="container">
+            <div id="loading"></div>
+            <div id="header" style="margin:20px">
+                <form>
+                    <input type="text" id="keyword" value="AKB48" />
+                    <input type="submit" value="検索"　id="btn" disables="disabled" />
+                    <input type="button" value=" < < " id="prev" />
+                    <input type="button" value=" 再生 " id="exe" />
+                    <input type="button" value=" > > " id="next" />
+                </form>
+            </div>
+            <div id="main_box" class="clearfix">
+                <div id="main" class="pull-left">
+                    <div id="title"></div>
+                    <div id="player"></div>
+                    <div id="description"></div>
+                </div>
+                <div id="related" class="pull-left"></div>
+            </div>
+        </div>
+        <script src="https://apis.google.com/js/client.js?onload=googleApiClientReady"></script>
+    </body>
+</html>
